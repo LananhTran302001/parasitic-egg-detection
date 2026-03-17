@@ -60,6 +60,8 @@ class ConvertCocoPolysToMask(object):
         anno = target["annotations"]
 
         anno = [obj for obj in anno if 'iscrowd' not in obj or obj['iscrowd'] == 0]
+        for obj in anno:
+            obj["iscrowd"] = obj.get("iscrowd", 0)
 
         boxes = [obj["bbox"] for obj in anno]
         # guard against no boxes via resizing
