@@ -121,10 +121,6 @@ def main(args):
     model, criterion, postprocessors = build_model(args)
     model.to(device)
 
-    for name, param in model.named_parameters():
-        if "backbone" in name:
-            param.requires_grad = False
-
     model_without_ddp = model
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
@@ -179,7 +175,14 @@ def main(args):
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+        
+        # remove incompatible classifier
+        checkpoint_state_dict = checkpoint['model']
+        for k in list(checkpoint_state_dict.keys()):
+            if 'class_embed' in k:
+                del checkpoint_state_dict[k]
+        model_without_ddp.load_state_dict(checkpoint_state_dict, strict=False)
+
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
@@ -195,10 +198,6 @@ def main(args):
     print("Start training")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
-        if epoch == 10:
-            for name, param in model.named_parameters():
-                if "backbone" in name:
-                    param.requires_grad = True
         if args.distributed:
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
