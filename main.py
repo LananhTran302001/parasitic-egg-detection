@@ -121,6 +121,10 @@ def main(args):
     model, criterion, postprocessors = build_model(args)
     model.to(device)
 
+    for name, param in model.named_parameters():
+        if "backbone" in name:
+            param.requires_grad = False
+
     model_without_ddp = model
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
@@ -191,6 +195,10 @@ def main(args):
     print("Start training")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
+        if epoch == 10:
+            for name, param in model.named_parameters():
+                if "backbone" in name:
+                    param.requires_grad = True
         if args.distributed:
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
