@@ -10,6 +10,14 @@ import os
 import contextlib
 import copy
 import numpy as np
+# Patch deprecated numpy aliases (for old libs like pycocotools)
+if not hasattr(np, "float"):
+    np.float = float
+if not hasattr(np, "int"):
+    np.int = int
+if not hasattr(np, "bool"):
+    np.bool = bool
+    
 import torch
 
 from pycocotools.cocoeval import COCOeval
