@@ -166,7 +166,7 @@ def main(args):
 
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
-        model_without_ddp.detr.load_state_dict(checkpoint['model'])
+        model_without_ddp.detr.load_state_dict(checkpoint['model'], strict=False)
 
     output_dir = Path(args.output_dir)
     if args.resume:
@@ -175,7 +175,14 @@ def main(args):
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'])
+
+        # remove incompatible classifier
+        checkpoint_state_dict = checkpoint['model']
+        for k in list(checkpoint_state_dict.keys()):
+            if 'class_embed' in k:
+                del checkpoint_state_dict[k]
+        model_without_ddp.load_state_dict(checkpoint_state_dict, strict=False)
+        
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
