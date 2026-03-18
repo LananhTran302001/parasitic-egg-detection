@@ -23,6 +23,7 @@ import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
+from pycocotools.cocoeval import Params
 
 
 def get_args_parser():
@@ -182,7 +183,11 @@ def main(args):
             checkpoint = torch.hub.load_state_dict_from_url(
                 args.resume, map_location='cpu', check_hash=True)
         else:
-            checkpoint = torch.load(args.resume, map_location='cpu')
+            try:
+                checkpoint = torch.load(args.resume, map_location='cpu')
+            except Exception:
+                with torch.serialization.safe_globals([Params]):
+                    checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
 
         # remove incompatible classifier
         checkpoint_state_dict = checkpoint['model']
