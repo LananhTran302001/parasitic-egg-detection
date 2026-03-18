@@ -56,18 +56,60 @@ def plot_logs(logs, fields=('class_error', 'loss_bbox_unscaled', 'mAP'), ewm_col
 
     for df, color in zip(dfs, sns.color_palette(n_colors=len(logs))):
         for j, field in enumerate(fields):
+            print("FIELD:", field)
+
             if field == 'mAP':
-                coco_eval = pd.DataFrame(
-                    np.stack(df.test_coco_eval_bbox.dropna().values)[:, 1]
-                ).ewm(com=ewm_col).mean()
-                axs[j].plot(coco_eval, c=color)
+                # --- safe extract mAP ---
+                def safe_map(x):
+                    if isinstance(x, (list, tuple)) and len(x) > 1:
+                        return x[1]   # mAP@[0.5:0.95]
+                    return np.nan
+
+                if 'test_coco_eval_bbox' in df.columns:
+                    mAP_series = df['test_coco_eval_bbox'].apply(safe_map)
+
+                    # convert numeric + clean
+                    mAP_series = pd.to_numeric(mAP_series, errors='coerce')
+                    mAP_series = mAP_series.dropna()
+
+                    if len(mAP_series) > 0:
+                        mAP_series = mAP_series.ewm(com=ewm_col).mean()
+                        axs[j].plot(mAP_series, c=color)
+                    else:
+                        print("Warning: mAP empty")
+                else:
+                    print("Warning: test_coco_eval_bbox not found")
+
             else:
-                df.interpolate().ewm(com=ewm_col).mean().plot(
-                    y=[f'train_{field}', f'test_{field}'],
+                cols = [f'train_{field}', f'test_{field}']
+                valid_cols = [c for c in cols if c in df.columns]
+
+                if len(valid_cols) == 0:
+                    print(f"Warning: {field} not found")
+                    continue
+
+                df_plot = df[valid_cols].copy()
+
+                # --- fix list values ---
+                for c in valid_cols:
+                    df_plot[c] = df_plot[c].apply(
+                        lambda x: x[0] if isinstance(x, list) else x
+                    )
+
+                # --- convert to numeric ---
+                df_plot = df_plot.apply(pd.to_numeric, errors='coerce')
+
+                # --- fix warning ---
+                df_plot = df_plot.infer_objects(copy=False)
+
+                # --- plot ---
+                df_plot.interpolate().ewm(com=ewm_col).mean().plot(
+                    y=valid_cols,
                     ax=axs[j],
-                    color=[color] * 2,
-                    style=['-', '--']
+                    color=[color] * len(valid_cols),
+                    style=['-', '--'][:len(valid_cols)]
                 )
+
     for ax, field in zip(axs, fields):
         ax.legend([Path(p).name for p in logs])
         ax.set_title(field)
